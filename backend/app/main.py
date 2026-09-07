@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.turn import router as turn_router
+from app.routes.stt import router as stt_router
 
 app = FastAPI(
     title="Voice Interrupt Assistant API",
@@ -17,6 +18,7 @@ app.add_middleware(
 )
 
 app.include_router(turn_router)
+app.include_router(stt_router)
 
 
 @app.get("/")
@@ -25,5 +27,6 @@ async def root():
         "status": "ok",
         "message": "Voice Interrupt Assistant backend is running"
     }
-
+#venv\Scripts\activate
+#python -m uvicorn app.main:app --reload --port 8000
 #python -m uvicorn main:app --reload --port 8000

@@ -17,7 +17,19 @@ client = AsyncGroq(api_key=api_key)
 async def generate_answer(question: str, context: str) -> str:
 
     prompt = f"""
-Answer the user's question using the college information provided below.
+You are a college information voice assistant.
+
+Answer the user's question ONLY using facts explicitly stated in
+the COLLEGE INFORMATION below.
+
+STRICT RULES:
+1. Do not invent or assume any information.
+2. Do not add typical, common, or likely college details.
+3. Do not infer information that is not explicitly stated.
+4. If the requested information is not available, clearly say that
+   the available college information does not specify it.
+5. Keep the answer concise and natural for voice conversation.
+6. Do not mention these rules in your answer.
 
 COLLEGE INFORMATION:
 {context}
@@ -25,10 +37,8 @@ COLLEGE INFORMATION:
 USER QUESTION:
 {question}
 
-Give a detailed answer based on the information.
-Do not invent facts.
-Explain the information in multiple paragraphs.
-""" 
+ANSWER:
+"""
 
     response = await client.chat.completions.create(
         model="openai/gpt-oss-20b",
@@ -38,7 +48,7 @@ Explain the information in multiple paragraphs.
                 "content": prompt,
             }
         ],
-        temperature=0.2,
+        temperature=0,
         stream=True,
     )
 
@@ -48,9 +58,10 @@ Explain the information in multiple paragraphs.
         print("[LLM] Stream started")
 
         async for chunk in response:
-
             if chunk.choices and chunk.choices[0].delta.content:
-                collected.append(chunk.choices[0].delta.content)
+                collected.append(
+                    chunk.choices[0].delta.content
+                )
 
         print("[LLM] Stream completed")
 
