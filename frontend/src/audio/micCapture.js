@@ -7,9 +7,13 @@ export async function startMicrophone() {
     return mediaStream;
   }
 
-  mediaStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-  });
+ mediaStream = await navigator.mediaDevices.getUserMedia({
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  },
+});
 
   return mediaStream;
 }

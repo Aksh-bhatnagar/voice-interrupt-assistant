@@ -1,4 +1,5 @@
 let currentUtterance = null;
+let speaking = false;
 
 export function speak(text, options = {}) {
   if (!text) {
@@ -14,16 +15,23 @@ export function speak(text, options = {}) {
   utterance.volume = options.volume ?? 1;
 
   currentUtterance = utterance;
+  speaking = true;
+
+  console.log("[TTS] Started");
 
   utterance.onend = () => {
     if (currentUtterance === utterance) {
       currentUtterance = null;
+      speaking = false;
+      console.log("[TTS] Finished");
     }
   };
 
   utterance.onerror = () => {
     if (currentUtterance === utterance) {
       currentUtterance = null;
+      speaking = false;
+      console.log("[TTS] Ended with error");
     }
   };
 
@@ -32,9 +40,13 @@ export function speak(text, options = {}) {
 
 export function stopSpeaking() {
   speechSynthesis.cancel();
+
   currentUtterance = null;
+  speaking = false;
+
+  console.log("[TTS] Stopped");
 }
 
 export function isSpeaking() {
-  return speechSynthesis.speaking;
+  return speaking;
 }
