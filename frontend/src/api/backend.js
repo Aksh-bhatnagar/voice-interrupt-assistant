@@ -54,3 +54,21 @@ export async function transcribeAudio(audioBlob) {
 
   return response.json();
 }
+
+export async function generateTTS(text) {
+  const response = await fetch(`${API_BASE_URL}/api/tts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`TTS request failed: ${response.status}`);
+  }
+
+  return response.blob();
+}

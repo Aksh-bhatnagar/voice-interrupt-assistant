@@ -1,52 +1,127 @@
-let currentUtterance = null;
-let speaking = false;
+import { generateTTS } from "../api/backend";
 
-export function speak(text, options = {}) {
-  if (!text) {
-    return;
+let audioContext = null;
+let currentSource = null;
+let currentBuffer = null;
+let ttsAnalyser = null;
+let speaking = false;
+let playbackStartTime = 0;
+
+function getOrCreateAudioContext() {
+  if (!audioContext) {
+    audioContext = new AudioContext();
   }
 
-  speechSynthesis.cancel();
+  return audioContext;
+}
 
-  const utterance = new SpeechSynthesisUtterance(text);
+async function ensureAudioContext() {
+  const ctx = getOrCreateAudioContext();
 
-  utterance.rate = options.rate ?? 1;
-  utterance.pitch = options.pitch ?? 1;
-  utterance.volume = options.volume ?? 1;
+  if (ctx.state === "suspended") {
+    await ctx.resume();
+  }
 
-  currentUtterance = utterance;
-  speaking = true;
+  return ctx;
+}
 
-  console.log("[TTS] Started");
+export async function speak(text) {
+  if (!text) return;
 
-  utterance.onend = () => {
-    if (currentUtterance === utterance) {
-      currentUtterance = null;
-      speaking = false;
-      console.log("[TTS] Finished");
-    }
-  };
+  stopSpeaking();
 
-  utterance.onerror = () => {
-    if (currentUtterance === utterance) {
-      currentUtterance = null;
-      speaking = false;
-      console.log("[TTS] Ended with error");
-    }
-  };
+  const ctx = await ensureAudioContext();
 
-  speechSynthesis.speak(utterance);
+  console.log("[TTS] Generating controllable audio...");
+
+  try {
+    const audioBlob = await generateTTS(text);
+
+    const arrayBuffer = await audioBlob.arrayBuffer();
+
+    const audioBuffer =
+      await ctx.decodeAudioData(arrayBuffer);
+
+    currentBuffer = audioBuffer;
+
+    const source = ctx.createBufferSource();
+
+    source.buffer = audioBuffer;
+
+    ttsAnalyser = ctx.createAnalyser();
+    ttsAnalyser.fftSize = 2048;
+    ttsAnalyser.smoothingTimeConstant = 0;
+
+    source.connect(ttsAnalyser);
+    ttsAnalyser.connect(ctx.destination);
+
+    currentSource = source;
+    speaking = true;
+
+    playbackStartTime = ctx.currentTime;
+
+    console.log("[TTS] Started");
+
+    source.onended = () => {
+      if (currentSource === source) {
+        currentSource = null;
+        currentBuffer = null;
+        ttsAnalyser = null;
+        speaking = false;
+        playbackStartTime = 0;
+
+        console.log("[TTS] Finished");
+      }
+    };
+
+    source.start(0);
+
+  } catch (error) {
+    speaking = false;
+
+    console.error("[TTS] FAILED:", error);
+
+    throw error;
+  }
 }
 
 export function stopSpeaking() {
-  speechSynthesis.cancel();
+  if (currentSource) {
+    try {
+      currentSource.stop();
+    } catch {}
 
-  currentUtterance = null;
+    try {
+      currentSource.disconnect();
+    } catch {}
+
+    currentSource = null;
+  }
+
+  currentBuffer = null;
+  ttsAnalyser = null;
   speaking = false;
+  playbackStartTime = 0;
 
   console.log("[TTS] Stopped");
 }
 
 export function isSpeaking() {
   return speaking;
+}
+
+export function getTTSAnalyser() {
+  return ttsAnalyser;
+}
+
+export function getTTSBuffer() {
+  return currentBuffer;
+}
+
+export function getPlaybackStartTime() {
+  return playbackStartTime;
+}
+
+export function getSharedAudioContext() {
+  return audioContext;
 }

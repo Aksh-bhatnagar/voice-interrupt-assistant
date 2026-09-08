@@ -7,13 +7,18 @@ export async function startMicrophone() {
     return mediaStream;
   }
 
- mediaStream = await navigator.mediaDevices.getUserMedia({
-  audio: {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-  },
-});
+  mediaStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: "all",
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: 1,
+    },
+  });
+
+  const track = mediaStream.getAudioTracks()[0];
+
+  console.log("[MIC] Audio settings:", track.getSettings());
 
   return mediaStream;
 }

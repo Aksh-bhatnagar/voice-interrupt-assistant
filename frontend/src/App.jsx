@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import TurnController from "./turn/TurnController";
 
 import { startVAD, stopVAD } from "./audio/vad";
+
 import {
   startMicrophone,
   startRecording,
@@ -10,8 +11,13 @@ import {
 } from "./audio/micCapture";
 
 import { transcribeAudio } from "./api/backend";
-import { isSpeaking, speak, stopSpeaking } from "./audio/tts";
-import { TURN_STATES } from "./turn/turnState";
+
+import {
+  isSpeaking,
+  speak,
+  stopSpeaking,
+} from "./audio/tts";
+
 
 function App() {
   const [running, setRunning] = useState(false);
@@ -19,114 +25,199 @@ function App() {
   const [transcript, setTranscript] = useState("");
   const [answer, setAnswer] = useState("");
   const [processing, setProcessing] = useState(false);
+
   const turnControllerRef = useRef(null);
+
+  const recordingRef = useRef(false);
 
   if (!turnControllerRef.current) {
     turnControllerRef.current = new TurnController();
   }
 
+
   async function handleStart() {
-    await startMicrophone();
+    try {
+      await startMicrophone();
 
-    await startVAD({
-      onSpeechStart: () => {
-        console.log("[APP] Speech detected");
+      await startVAD({
 
-        const controller = turnControllerRef.current;
+        onSpeechStart: () => {
+          console.log("[APP] Speech detected");
 
-        // Assistant is speaking → possible barge-in
-        if (isSpeaking() && controller.state === TURN_STATES.SPEAKING) {
-          console.log("[BARGE-IN] User interrupted assistant");
+          const controller = turnControllerRef.current;
 
-          stopSpeaking();
+          if (isSpeaking()) {
+            console.log("[BARGE-IN] User speech detected");
 
-          controller.interrupt();
+            stopSpeaking();
 
-          startRecording();
-          setRecording(true);
+            controller.interrupt();
 
-          console.log("[MIC] Recording started after interruption");
+            try {
+              startRecording();
 
-          return;
-        }
+              recordingRef.current = true;
+              setRecording(true);
 
-        // Normal user speech
-        if (
-          controller.state === TURN_STATES.IDLE ||
-          controller.state === TURN_STATES.LISTENING
-        ) {
+              console.log(
+                "[BARGE-IN] Recording started"
+              );
+
+            } catch (error) {
+              console.error(
+                "[BARGE-IN] Recording failed:",
+                error
+              );
+            }
+
+            return;
+          }
+
           console.log("[APP] User started speaking");
 
-          startRecording();
-          setRecording(true);
+          try {
+            startRecording();
 
-          console.log("[MIC] Recording started");
-        }
-      },
+            recordingRef.current = true;
+            setRecording(true);
 
-      onSpeechEnd: async () => {
-        console.log("[APP] User stopped speaking");
+            console.log("[MIC] Recording started");
 
-        const blob = await stopRecording();
+          } catch (error) {
+            console.error(
+              "[MIC] Failed to start recording:",
+              error
+            );
+          }
+        },
 
-        setRecording(false);
 
-        console.log("[MIC] Recording stopped");
-        console.log("[MIC] Audio blob:", blob);
+        onSpeechEnd: async () => {
+          console.log("[APP] Speech ended");
 
-        if (!blob) {
-          console.log("[STT] No audio blob");
-          return;
-        }
+          if (!recordingRef.current) {
+            console.log(
+              "[APP] No recording active"
+            );
 
-        try {
-          setProcessing(true);
-          setAnswer("");
+            return;
+          }
 
-          console.log("[STT] Sending audio to Whisper...");
+          console.log(
+            "[APP] User stopped speaking"
+          );
 
-          const sttResult = await transcribeAudio(blob);
+          const blob = await stopRecording();
 
-          const text = sttResult.text?.trim();
+          recordingRef.current = false;
+          setRecording(false);
 
-          console.log("[STT] Transcript:", text);
+          console.log("[MIC] Recording stopped");
+          console.log("[MIC] Audio blob:", blob);
 
-          if (!text) {
-            console.log("[STT] Empty transcript");
+          if (!blob) {
+            return;
+          }
+
+
+          try {
+            setProcessing(true);
+            setAnswer("");
+
+            console.log(
+              "[STT] Sending audio to Whisper..."
+            );
+
+            const sttResult =
+              await transcribeAudio(blob);
+
+            const text =
+              sttResult.text?.trim();
+
+            console.log(
+              "[STT] Transcript:",
+              text
+            );
+
+            if (!text || text === ".") {
+              console.log(
+                "[STT] Empty/invalid transcript"
+              );
+
+              return;
+            }
+
+            setTranscript(text);
+
+            console.log(
+              "[LLM] Sending transcript..."
+            );
+
+            const result =
+              await turnControllerRef.current.startTurn(
+                text
+              );
+
+            if (!result) {
+              console.log(
+                "[TURN] No response"
+              );
+
+              return;
+            }
+
+            console.log(
+              "[LLM] Answer:",
+              result.answer
+            );
+
+            setAnswer(result.answer);
+
+            console.log(
+              "[TTS] Speaking answer..."
+            );
+
+            await speak(result.answer);
+
+          } catch (error) {
+
+            console.error(
+              "[APP] Processing error:",
+              error
+            );
+
+          } finally {
             setProcessing(false);
-            return;
           }
+        },
+      });
 
-          setTranscript(text);
+      setRunning(true);
 
-          console.log("[LLM] Sending transcript...");
+      console.log(
+        "[APP] Assistant started"
+      );
 
-          const result = await turnControllerRef.current.startTurn(text);
+    } catch (error) {
 
-          if (!result) {
-            console.log("[TURN] No active response");
-            return;
-          }
-
-          console.log("[LLM] Answer:", result.answer);
-
-          setAnswer(result.answer);
-
-          console.log("[TTS] Speaking answer...");
-          speak(result.answer);
-        } catch (error) {
-          console.error("[APP] Processing error:", error);
-        } finally {
-          setProcessing(false);
-        }
-      },
-    });
-
-    setRunning(true);
+      console.error(
+        "[APP] Failed to start assistant:",
+        error
+      );
+    }
   }
 
+
   async function handleStop() {
+
+    recordingRef.current = false;
+
     stopSpeaking();
+
+    if (turnControllerRef.current) {
+      await turnControllerRef.current.interrupt();
+      turnControllerRef.current.reset();
+    }
 
     await stopVAD();
 
@@ -134,51 +225,218 @@ function App() {
 
     setRunning(false);
     setRecording(false);
+    setProcessing(false);
 
-    console.log("[APP] Microphone stopped");
+    console.log(
+      "[APP] Assistant stopped"
+    );
   }
 
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-5 p-6">
-      <h1 className="text-3xl font-bold">Voice Interrupt Assistant</h1>
+    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
 
-      <p>VAD: {running ? "Running" : "Stopped"}</p>
+      <div className="w-full max-w-3xl">
 
-      <p>Microphone: {recording ? "Recording" : "Waiting"}</p>
+        {/* HEADER */}
 
-      {processing && <p className="font-semibold">Processing...</p>}
+        <div className="text-center mb-8">
 
-      {transcript && (
-        <div className="w-full max-w-xl rounded-lg border p-4">
-          <p className="font-semibold mb-2">You said</p>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-sm text-slate-300 mb-4">
 
-          <p>{transcript}</p>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                running
+                  ? "bg-green-400"
+                  : "bg-slate-500"
+              }`}
+            />
+
+            {running
+              ? "Assistant online"
+              : "Assistant offline"}
+
+          </div>
+
+
+          <h1 className="text-4xl font-bold">
+            Voice Interrupt Assistant
+          </h1>
+
+
+          <p className="text-slate-400 mt-2">
+            Ask anything about the college.
+          </p>
+
         </div>
-      )}
 
-      {answer && (
-        <div className="w-full max-w-xl rounded-lg border p-4">
-          <p className="font-semibold mb-2">Assistant</p>
 
-          <p>{answer}</p>
+        {/* MAIN CARD */}
+
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+
+          {/* STATUS */}
+
+          <div className="flex items-center justify-between mb-6">
+
+            <div>
+
+              <p className="text-sm text-slate-400">
+                Status
+              </p>
+
+              <p className="text-lg font-semibold">
+
+                {processing
+                  ? "Thinking..."
+                  : recording
+                  ? "Listening..."
+                  : isSpeaking()
+                  ? "Speaking..."
+                  : running
+                  ? "Ready"
+                  : "Stopped"}
+
+              </p>
+
+            </div>
+
+
+            <div
+              className={`w-16 h-16 rounded-full flex items-center justify-center ${
+                recording
+                  ? "bg-red-500/20"
+                  : isSpeaking()
+                  ? "bg-blue-500/20"
+                  : "bg-white/10"
+              }`}
+            >
+
+              <div
+                className={`w-6 h-6 rounded-full ${
+                  recording
+                    ? "bg-red-400 animate-pulse"
+                    : isSpeaking()
+                    ? "bg-blue-400 animate-pulse"
+                    : "bg-slate-400"
+                }`}
+              />
+
+            </div>
+
+          </div>
+
+
+          {/* USER */}
+
+          {transcript && (
+
+            <div className="mb-4">
+
+              <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
+                You
+              </p>
+
+              <div className="rounded-2xl bg-white/10 p-4">
+                {transcript}
+              </div>
+
+            </div>
+
+          )}
+
+
+          {/* ASSISTANT */}
+
+          {answer && (
+
+            <div className="mb-6">
+
+              <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
+                Assistant
+              </p>
+
+              <div className="rounded-2xl bg-blue-500/10 border border-blue-400/10 p-5 leading-7 whitespace-pre-line">
+                {answer}
+              </div>
+
+            </div>
+
+          )}
+
+
+          {/* EMPTY */}
+
+          {!transcript && !answer && (
+
+            <div className="py-16 text-center text-slate-500">
+
+              <div className="text-5xl mb-4">
+                🎙️
+              </div>
+
+              <p>
+                Start the assistant and ask a question
+              </p>
+
+            </div>
+
+          )}
+
+
+          {/* BUTTON */}
+
+          <div className="flex justify-center pt-4">
+
+            {!running ? (
+
+              <button
+                onClick={handleStart}
+                className="px-8 py-4 rounded-2xl bg-white text-black font-semibold hover:bg-slate-200 transition"
+              >
+                Start Assistant
+              </button>
+
+            ) : (
+
+              <button
+                onClick={handleStop}
+                className="px-8 py-4 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition"
+              >
+                Stop Assistant
+              </button>
+
+            )}
+
+          </div>
+
         </div>
-      )}
 
-      {!running ? (
-        <button
-          onClick={handleStart}
-          className="px-6 py-3 rounded-lg bg-black text-white"
-        >
-          Start Assistant
-        </button>
-      ) : (
-        <button
-          onClick={handleStop}
-          className="px-6 py-3 rounded-lg bg-gray-700 text-white"
-        >
-          Stop Assistant
-        </button>
-      )}
+
+        {/* TECHNOLOGY */}
+
+        <div className="flex flex-wrap justify-center gap-3 mt-6 text-xs text-slate-500">
+
+          <span className="px-3 py-1 rounded-full bg-white/5">
+            Silero VAD
+          </span>
+
+          <span className="px-3 py-1 rounded-full bg-white/5">
+            Groq Whisper
+          </span>
+
+          <span className="px-3 py-1 rounded-full bg-white/5">
+            Groq LLM
+          </span>
+
+          <span className="px-3 py-1 rounded-full bg-white/5">
+            Barge-in
+          </span>
+
+        </div>
+
+      </div>
+
     </div>
   );
 }
