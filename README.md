@@ -69,7 +69,7 @@ The user does not have to wait for the assistant to finish.
 ## 1. Clone the repository
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/Aksh-bhatnagar/voice-interrupt-assistant
 cd voice-interrupt-assistant
 ```
 
