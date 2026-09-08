@@ -1,24 +1,12 @@
 function TechBadges() {
-  const technologies = [
-    "Silero VAD",
-    "Groq Whisper",
-    "Groq LLM",
-    "RAG",
-    "Barge-in",
-  ];
-
   return (
-    <div className="flex flex-wrap justify-center gap-2.5">
-      {technologies.map((item) => (
-        <span
-          key={item}
-          className="cursor-default rounded-lg border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium tracking-wide text-slate-400 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-slate-200"
-        >
-          {item}
-        </span>
-      ))}
-    </div>
+    <p className="mx-auto max-w-md text-center text-[13px] leading-relaxed text-[#6f7684]">
+      Speech is picked up with <span className="text-[#8d95a3]">Silero VAD</span> and
+      transcribed by <span className="text-[#8d95a3]">Groq Whisper</span>. Answers
+      come from <span className="text-[#8d95a3]">Groq</span>, grounded in the
+      college's own catalog through retrieval, and can be interrupted mid-reply.
+    </p>
   );
 }
 
-export default TechBadges;  
+export default TechBadges;

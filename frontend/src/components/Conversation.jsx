@@ -40,8 +40,7 @@ function Conversation({
         ? answerDuration * 1000
         : Math.max(answer.length * 30, 1000);
 
-    const typingSpeed =
-      Math.max(15, duration / answer.length);
+    const typingSpeed = Math.max(15, duration / answer.length);
 
     setDisplayedAnswer("");
 
@@ -66,12 +65,10 @@ function Conversation({
 
   if (!transcript && !answer) {
     return (
-      <div className="flex min-h-[100px] items-center justify-center rounded-[1.5rem] border border-dashed border-white/10 bg-white/[0.01] transition-all hover:bg-white/[0.02]">
-        <div className="text-center">
-          <p className="text-[13px] font-medium tracking-wide text-slate-500">
-            Ask me anything about the college
-          </p>
-        </div>
+      <div className="flex min-h-[100px] items-center justify-center rounded-[1.25rem] border border-dashed border-[#f3eee1]/[0.12] transition-all">
+        <p className="text-[13px] font-medium text-[#6f7684]">
+          Ask me anything about the college
+        </p>
       </div>
     );
   }
@@ -80,12 +77,12 @@ function Conversation({
     <div className="space-y-3">
       {/* User Message */}
       {transcript && (
-        <div className="rounded-[1.5rem] rounded-tr-sm border border-white/10 bg-white/5 p-4 shadow-lg backdrop-blur-sm transition-all animate-[slideIn_0.3s_ease-out]">
-          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+        <div className="rounded-[1.25rem] rounded-tr-sm border border-[#f3eee1]/[0.1] bg-[#f3eee1]/[0.03] p-4 transition-all animate-[slideIn_0.3s_ease-out]">
+          <div className="mb-2 text-[11px] font-medium text-[#8d95a3]">
             You
           </div>
 
-          <p className="text-[14px] leading-relaxed text-slate-100">
+          <p className="text-[14px] leading-relaxed text-[#f3eee1]">
             {transcript}
           </p>
         </div>
@@ -93,19 +90,18 @@ function Conversation({
 
       {/* Assistant Message */}
       {answer && (
-        <div className="rounded-[1.5rem] rounded-tl-sm border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-violet-500/10 p-4 shadow-[0_4px_24px_-8px_rgba(59,130,246,0.2)] backdrop-blur-sm transition-all animate-[slideIn_0.4s_ease-out]">
-          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-blue-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]" />
+        <div className="rounded-[1.25rem] rounded-tl-sm border border-[#c79a4f]/25 bg-[#c79a4f]/[0.06] p-4 transition-all animate-[slideIn_0.4s_ease-out]">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-[#dcb571]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#c79a4f] shadow-[0_0_8px_rgba(199,154,79,0.7)]" />
             Assistant
           </div>
 
-          <p className="whitespace-pre-line text-[14px] leading-relaxed text-slate-100">
+          <p className="whitespace-pre-line text-[14px] leading-relaxed text-[#f3eee1]">
             {displayedAnswer}
 
-            {revealAnswer &&
-              displayedAnswer.length < answer.length && (
-                <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-blue-400 align-middle opacity-80" />
-              )}
+            {revealAnswer && displayedAnswer.length < answer.length && (
+              <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-[#c79a4f] align-middle opacity-80" />
+            )}
           </p>
         </div>
       )}

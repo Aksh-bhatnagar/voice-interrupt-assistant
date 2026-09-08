@@ -18,7 +18,6 @@ import { isSpeaking, speak, stopSpeaking } from "./audio/tts";
 import Header from "./components/Header";
 import VoiceOrb from "./components/VoiceOrb";
 import Conversation from "./components/Conversation";
-import Pipeline from "./components/Pipeline";
 import ControlButton from "./components/ControlButton";
 import TechBadges from "./components/TechBadges";
 import HelpModal from "./components/HelpModal";
@@ -218,29 +217,26 @@ function App() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#03050D] text-slate-100 font-sans selection:bg-cyan-500/30 flex flex-col justify-center">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden mix-blend-screen">
-        <div className="absolute left-1/2 top-[-10%] h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-blue-600/15 blur-[160px] opacity-70" />
-
-        <div className="absolute bottom-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-violet-600/15 blur-[140px] opacity-60" />
-
-        <div className="absolute bottom-[-5%] right-[-10%] h-[450px] w-[450px] rounded-full bg-cyan-500/10 blur-[140px] opacity-60" />
+    <div className="relative min-h-screen overflow-x-hidden bg-[#12181f] text-[#f3eee1] font-sans selection:bg-[#c79a4f]/30 flex flex-col justify-center">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-[-8%] h-[560px] w-[720px] -translate-x-1/2 rounded-full bg-[#c79a4f]/[0.06] blur-[170px]" />
       </div>
 
       <div className="relative mx-auto flex w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
         <Header running={running} />
 
-        <div className="mx-auto mt-6 w-full max-w-3xl">
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.02] shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-3xl transition-all">
+        <div className="mx-auto mt-8 w-full max-w-3xl">
+          <div className="relative overflow-hidden rounded-[1.75rem] border border-[#f3eee1]/[0.08] bg-[#161d26] shadow-[0_8px_32px_rgba(0,0,0,0.45)] transition-all">
             <button
               type="button"
               onClick={() => setHelpOpen(true)}
-              className="absolute right-5 top-5 z-20 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm font-semibold text-slate-400 backdrop-blur-md transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+              className="absolute right-5 top-5 z-20 flex h-8 w-8 items-center justify-center rounded-full border border-[#f3eee1]/[0.12] font-serif italic text-sm text-[#8d95a3] transition hover:border-[#c79a4f]/50 hover:text-[#c79a4f]"
               aria-label="How to use"
               title="How to use"
             >
               ?
             </button>
+
             <VoiceOrb status={status} />
 
             <div className="px-6 pb-6 sm:px-8">
@@ -251,9 +247,7 @@ function App() {
                 revealAnswer={revealAnswer}
               />
 
-              <Pipeline status={status} />
-
-              <div className="flex justify-center pt-6 pb-2">
+              <div className="flex justify-center pt-8 pb-2">
                 <ControlButton
                   running={running}
                   onStart={handleStart}
@@ -266,20 +260,10 @@ function App() {
           <div className="mt-6">
             <TechBadges />
           </div>
-
-          <div className="mt-5 flex items-center justify-center gap-3 text-center text-xs tracking-widest text-slate-500 uppercase font-medium">
-            <span>Voice-first AI</span>
-            <span className="h-1 w-1 rounded-full bg-slate-600" />
-            <span>Real-time interruption</span>
-            <span className="h-1 w-1 rounded-full bg-slate-600" />
-            <span>Grounded answers</span>
-          </div>
         </div>
       </div>
-      <HelpModal
-  open={helpOpen}
-  onClose={() => setHelpOpen(false)}
-/>
+
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

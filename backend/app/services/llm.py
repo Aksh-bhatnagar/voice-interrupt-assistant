@@ -1,4 +1,3 @@
-import asyncio
 import os
 
 from dotenv import load_dotenv
@@ -40,39 +39,37 @@ USER QUESTION:
 ANSWER:
 """
 
-    response = await client.chat.completions.create(
-        model="openai/gpt-oss-20b",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        temperature=0,
-        max_completion_tokens=200,
-        stream=True,
-    )
-
-    collected = []
-
     try:
-        print("[LLM] Stream started")
+        print("[LLM] Request started")
 
-        async for chunk in response:
-            if chunk.choices and chunk.choices[0].delta.content:
-                collected.append(
-                    chunk.choices[0].delta.content
-                )
+        response = await client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            temperature=0,
+            max_completion_tokens=300,
+            reasoning_effort="low",
+            stream=False,
+        )
 
-        print("[LLM] Stream completed")
+        print("[LLM] Response received")
 
-        answer = "".join(collected).strip()
+        message = response.choices[0].message
+
+        print("[LLM] CONTENT:", repr(message.content))
+        print("[LLM] REASONING:", repr(getattr(message, "reasoning", None)))
+
+        answer = (message.content or "").strip()
 
         print(f"[LLM] Answer characters: {len(answer)}")
         print(f"[LLM] Answer: {answer}")
 
         return answer
 
-    except asyncio.CancelledError:
-        print("[LLM] Streaming request CANCELLED")
+    except Exception as e:
+        print(f"[LLM] ERROR: {type(e).__name__}: {e}")
         raise
