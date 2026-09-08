@@ -162,16 +162,6 @@ The assistant is instructed to answer using only information available in the kn
 
 ---
 
-# Demo
-
-Demo video:
-
-`TODO - Add demo video link`
-
-GitHub repository:
-
-`TODO - Add GitHub repository link`
-
 For the best demonstration, show these three cases.
 
 ### Normal conversation
