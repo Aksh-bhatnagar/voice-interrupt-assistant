@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
 import TurnController from "./turn/TurnController";
 
 import { startVAD, stopVAD } from "./audio/vad";
@@ -12,12 +13,15 @@ import {
 
 import { transcribeAudio } from "./api/backend";
 
-import {
-  isSpeaking,
-  speak,
-  stopSpeaking,
-} from "./audio/tts";
+import { isSpeaking, speak, stopSpeaking } from "./audio/tts";
 
+import Header from "./components/Header";
+import VoiceOrb from "./components/VoiceOrb";
+import Conversation from "./components/Conversation";
+import Pipeline from "./components/Pipeline";
+import ControlButton from "./components/ControlButton";
+import TechBadges from "./components/TechBadges";
+import HelpModal from "./components/HelpModal";
 
 function App() {
   const [running, setRunning] = useState(false);
@@ -25,29 +29,63 @@ function App() {
   const [transcript, setTranscript] = useState("");
   const [answer, setAnswer] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [interrupted, setInterrupted] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useEffect(() => {
+    const hasSeenHelp = localStorage.getItem("voice-assistant-help-seen");
+
+    if (!hasSeenHelp) {
+      setHelpOpen(true);
+      localStorage.setItem("voice-assistant-help-seen", "true");
+    }
+  }, []);
+
+  /*
+   * Controls when the assistant text starts appearing.
+   */
+  const [answerDuration, setAnswerDuration] = useState(null);
+  const [revealAnswer, setRevealAnswer] = useState(false);
 
   const turnControllerRef = useRef(null);
-
   const recordingRef = useRef(false);
 
   if (!turnControllerRef.current) {
     turnControllerRef.current = new TurnController();
   }
 
+  let status = "ready";
+
+  if (interrupted) {
+    status = "interrupted";
+  } else if (recording) {
+    status = "listening";
+  } else if (processing) {
+    status = "thinking";
+  } else if (isSpeaking()) {
+    status = "speaking";
+  }
 
   async function handleStart() {
     try {
       await startMicrophone();
 
       await startVAD({
-
         onSpeechStart: () => {
-          console.log("[APP] Speech detected");
-
           const controller = turnControllerRef.current;
 
+          /*
+           * BARGE-IN
+           */
           if (isSpeaking()) {
-            console.log("[BARGE-IN] User speech detected");
+            setInterrupted(true);
+            setProcessing(false);
+
+            /*
+             * Stop both voice and visual answer reveal.
+             */
+            setRevealAnswer(false);
+            setAnswerDuration(null);
 
             stopSpeaking();
 
@@ -58,134 +96,89 @@ function App() {
 
               recordingRef.current = true;
               setRecording(true);
-
-              console.log(
-                "[BARGE-IN] Recording started"
-              );
-
             } catch (error) {
-              console.error(
-                "[BARGE-IN] Recording failed:",
-                error
-              );
+              console.error(error);
             }
 
             return;
           }
 
-          console.log("[APP] User started speaking");
+          setInterrupted(false);
 
           try {
             startRecording();
 
             recordingRef.current = true;
             setRecording(true);
-
-            console.log("[MIC] Recording started");
-
           } catch (error) {
-            console.error(
-              "[MIC] Failed to start recording:",
-              error
-            );
+            console.error(error);
           }
         },
 
-
         onSpeechEnd: async () => {
-          console.log("[APP] Speech ended");
-
           if (!recordingRef.current) {
-            console.log(
-              "[APP] No recording active"
-            );
-
             return;
           }
-
-          console.log(
-            "[APP] User stopped speaking"
-          );
 
           const blob = await stopRecording();
 
           recordingRef.current = false;
           setRecording(false);
 
-          console.log("[MIC] Recording stopped");
-          console.log("[MIC] Audio blob:", blob);
-
           if (!blob) {
             return;
           }
 
-
           try {
             setProcessing(true);
+            setInterrupted(false);
+
+            /*
+             * Clear the previous answer immediately.
+             */
             setAnswer("");
+            setRevealAnswer(false);
+            setAnswerDuration(null);
 
-            console.log(
-              "[STT] Sending audio to Whisper..."
-            );
+            const sttResult = await transcribeAudio(blob);
 
-            const sttResult =
-              await transcribeAudio(blob);
-
-            const text =
-              sttResult.text?.trim();
-
-            console.log(
-              "[STT] Transcript:",
-              text
-            );
+            const text = sttResult.text?.trim();
 
             if (!text || text === ".") {
-              console.log(
-                "[STT] Empty/invalid transcript"
-              );
-
               return;
             }
 
             setTranscript(text);
 
-            console.log(
-              "[LLM] Sending transcript..."
-            );
-
-            const result =
-              await turnControllerRef.current.startTurn(
-                text
-              );
+            const result = await turnControllerRef.current.startTurn(text);
 
             if (!result) {
-              console.log(
-                "[TURN] No response"
-              );
-
               return;
             }
 
-            console.log(
-              "[LLM] Answer:",
-              result.answer
-            );
-
+            /*
+             * We now have the complete LLM answer.
+             * Keep it hidden until TTS is actually ready.
+             */
             setAnswer(result.answer);
 
-            console.log(
-              "[TTS] Speaking answer..."
-            );
+            /*
+             * Generate and start TTS.
+             *
+             * speak() calls this callback when the decoded
+             * audio is ready and playback is about to start.
+             */
+            await speak(result.answer, (duration) => {
+              console.log(
+                "[UI] Starting answer reveal",
+                `duration=${duration.toFixed(2)}s`,
+              );
 
-            await speak(result.answer);
-
+              setAnswerDuration(duration);
+              setRevealAnswer(true);
+            });
           } catch (error) {
-
-            console.error(
-              "[APP] Processing error:",
-              error
-            );
-
+            console.error(error);
           } finally {
             setProcessing(false);
           }
@@ -193,24 +186,19 @@ function App() {
       });
 
       setRunning(true);
-
-      console.log(
-        "[APP] Assistant started"
-      );
-
     } catch (error) {
-
-      console.error(
-        "[APP] Failed to start assistant:",
-        error
-      );
+      console.error(error);
     }
   }
 
-
   async function handleStop() {
-
     recordingRef.current = false;
+
+    /*
+     * Stop visual answer reveal.
+     */
+    setRevealAnswer(false);
+    setAnswerDuration(null);
 
     stopSpeaking();
 
@@ -226,217 +214,72 @@ function App() {
     setRunning(false);
     setRecording(false);
     setProcessing(false);
-
-    console.log(
-      "[APP] Assistant stopped"
-    );
+    setInterrupted(false);
   }
 
-
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#03050D] text-slate-100 font-sans selection:bg-cyan-500/30 flex flex-col justify-center">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden mix-blend-screen">
+        <div className="absolute left-1/2 top-[-10%] h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-blue-600/15 blur-[160px] opacity-70" />
 
-      <div className="w-full max-w-3xl">
+        <div className="absolute bottom-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-violet-600/15 blur-[140px] opacity-60" />
 
-        {/* HEADER */}
-
-        <div className="text-center mb-8">
-
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-sm text-slate-300 mb-4">
-
-            <span
-              className={`w-2 h-2 rounded-full ${
-                running
-                  ? "bg-green-400"
-                  : "bg-slate-500"
-              }`}
-            />
-
-            {running
-              ? "Assistant online"
-              : "Assistant offline"}
-
-          </div>
-
-
-          <h1 className="text-4xl font-bold">
-            Voice Interrupt Assistant
-          </h1>
-
-
-          <p className="text-slate-400 mt-2">
-            Ask anything about the college.
-          </p>
-
-        </div>
-
-
-        {/* MAIN CARD */}
-
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
-
-          {/* STATUS */}
-
-          <div className="flex items-center justify-between mb-6">
-
-            <div>
-
-              <p className="text-sm text-slate-400">
-                Status
-              </p>
-
-              <p className="text-lg font-semibold">
-
-                {processing
-                  ? "Thinking..."
-                  : recording
-                  ? "Listening..."
-                  : isSpeaking()
-                  ? "Speaking..."
-                  : running
-                  ? "Ready"
-                  : "Stopped"}
-
-              </p>
-
-            </div>
-
-
-            <div
-              className={`w-16 h-16 rounded-full flex items-center justify-center ${
-                recording
-                  ? "bg-red-500/20"
-                  : isSpeaking()
-                  ? "bg-blue-500/20"
-                  : "bg-white/10"
-              }`}
-            >
-
-              <div
-                className={`w-6 h-6 rounded-full ${
-                  recording
-                    ? "bg-red-400 animate-pulse"
-                    : isSpeaking()
-                    ? "bg-blue-400 animate-pulse"
-                    : "bg-slate-400"
-                }`}
-              />
-
-            </div>
-
-          </div>
-
-
-          {/* USER */}
-
-          {transcript && (
-
-            <div className="mb-4">
-
-              <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
-                You
-              </p>
-
-              <div className="rounded-2xl bg-white/10 p-4">
-                {transcript}
-              </div>
-
-            </div>
-
-          )}
-
-
-          {/* ASSISTANT */}
-
-          {answer && (
-
-            <div className="mb-6">
-
-              <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">
-                Assistant
-              </p>
-
-              <div className="rounded-2xl bg-blue-500/10 border border-blue-400/10 p-5 leading-7 whitespace-pre-line">
-                {answer}
-              </div>
-
-            </div>
-
-          )}
-
-
-          {/* EMPTY */}
-
-          {!transcript && !answer && (
-
-            <div className="py-16 text-center text-slate-500">
-
-              <div className="text-5xl mb-4">
-                🎙️
-              </div>
-
-              <p>
-                Start the assistant and ask a question
-              </p>
-
-            </div>
-
-          )}
-
-
-          {/* BUTTON */}
-
-          <div className="flex justify-center pt-4">
-
-            {!running ? (
-
-              <button
-                onClick={handleStart}
-                className="px-8 py-4 rounded-2xl bg-white text-black font-semibold hover:bg-slate-200 transition"
-              >
-                Start Assistant
-              </button>
-
-            ) : (
-
-              <button
-                onClick={handleStop}
-                className="px-8 py-4 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition"
-              >
-                Stop Assistant
-              </button>
-
-            )}
-
-          </div>
-
-        </div>
-
-
-        {/* TECHNOLOGY */}
-
-        <div className="flex flex-wrap justify-center gap-3 mt-6 text-xs text-slate-500">
-
-          <span className="px-3 py-1 rounded-full bg-white/5">
-            Silero VAD
-          </span>
-
-          <span className="px-3 py-1 rounded-full bg-white/5">
-            Groq Whisper
-          </span>
-
-          <span className="px-3 py-1 rounded-full bg-white/5">
-            Groq LLM
-          </span>
-
-          <span className="px-3 py-1 rounded-full bg-white/5">
-            Barge-in
-          </span>
-
-        </div>
-
+        <div className="absolute bottom-[-5%] right-[-10%] h-[450px] w-[450px] rounded-full bg-cyan-500/10 blur-[140px] opacity-60" />
       </div>
 
+      <div className="relative mx-auto flex w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
+        <Header running={running} />
+
+        <div className="mx-auto mt-6 w-full max-w-3xl">
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.02] shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-3xl transition-all">
+            <button
+              type="button"
+              onClick={() => setHelpOpen(true)}
+              className="absolute right-5 top-5 z-20 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-sm font-semibold text-slate-400 backdrop-blur-md transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+              aria-label="How to use"
+              title="How to use"
+            >
+              ?
+            </button>
+            <VoiceOrb status={status} />
+
+            <div className="px-6 pb-6 sm:px-8">
+              <Conversation
+                transcript={transcript}
+                answer={answer}
+                answerDuration={answerDuration}
+                revealAnswer={revealAnswer}
+              />
+
+              <Pipeline status={status} />
+
+              <div className="flex justify-center pt-6 pb-2">
+                <ControlButton
+                  running={running}
+                  onStart={handleStart}
+                  onStop={handleStop}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <TechBadges />
+          </div>
+
+          <div className="mt-5 flex items-center justify-center gap-3 text-center text-xs tracking-widest text-slate-500 uppercase font-medium">
+            <span>Voice-first AI</span>
+            <span className="h-1 w-1 rounded-full bg-slate-600" />
+            <span>Real-time interruption</span>
+            <span className="h-1 w-1 rounded-full bg-slate-600" />
+            <span>Grounded answers</span>
+          </div>
+        </div>
+      </div>
+      <HelpModal
+  open={helpOpen}
+  onClose={() => setHelpOpen(false)}
+/>
     </div>
   );
 }

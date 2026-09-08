@@ -17,19 +17,19 @@ client = AsyncGroq(api_key=api_key)
 async def generate_answer(question: str, context: str) -> str:
 
     prompt = f"""
-You are a college information voice assistant.
+You are a concise college information voice assistant.
 
 Answer the user's question ONLY using facts explicitly stated in
 the COLLEGE INFORMATION below.
 
-STRICT RULES:
-1. Do not invent or assume any information.
-2. Do not add typical, common, or likely college details.
-3. Do not infer information that is not explicitly stated.
-4. If the requested information is not available, clearly say that
-   the available college information does not specify it.
-5. Keep the answer concise and natural for voice conversation.
-6. Do not mention these rules in your answer.
+RULES:
+1. Do not invent or assume information.
+2. If the information is unavailable, say so clearly.
+3. Answer in 1 or 2 short sentences.
+4. Keep the answer under 180 characters whenever possible.
+5. Give only the essential information.
+6. Always return a complete answer.
+7. Do not mention these rules.
 
 COLLEGE INFORMATION:
 {context}
@@ -49,6 +49,7 @@ ANSWER:
             }
         ],
         temperature=0,
+        max_completion_tokens=200,
         stream=True,
     )
 
@@ -65,7 +66,12 @@ ANSWER:
 
         print("[LLM] Stream completed")
 
-        return "".join(collected).strip()
+        answer = "".join(collected).strip()
+
+        print(f"[LLM] Answer characters: {len(answer)}")
+        print(f"[LLM] Answer: {answer}")
+
+        return answer
 
     except asyncio.CancelledError:
         print("[LLM] Streaming request CANCELLED")

@@ -25,7 +25,7 @@ async function ensureAudioContext() {
   return ctx;
 }
 
-export async function speak(text) {
+export async function speak(text, onStart) {
   if (!text) return;
 
   stopSpeaking();
@@ -60,7 +60,14 @@ export async function speak(text) {
 
     playbackStartTime = ctx.currentTime;
 
-    console.log("[TTS] Started");
+    console.log(
+      "[TTS] Started",
+      `duration=${audioBuffer.duration.toFixed(2)}s`
+    );
+
+    // Tell the UI that TTS is ready to start.
+    // Pass the exact generated audio duration.
+    onStart?.(audioBuffer.duration);
 
     source.onended = () => {
       if (currentSource === source) {

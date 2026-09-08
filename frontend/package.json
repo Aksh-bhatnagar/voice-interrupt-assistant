@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@ricky0123/vad-web": "^0.0.30",
+    "@tailwindcss/vite": "^4.3.3",
     "onnxruntime-web": "^1.29.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
